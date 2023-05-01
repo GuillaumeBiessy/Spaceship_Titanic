@@ -1,0 +1,361 @@
+---
+title: "Spaceship Titanic : un projet d'équipe LinkPact"
+author: "Guillaume Biessy, responsable R&D"
+date: today
+---
+
+```{r}
+source("preamble.R", encoding = "UTF8")
+
+# Import des données----
+data_train <- read_csv("data/train.csv")
+data_test <- read_csv("data/test.csv")
+
+# Retraitement des données----
+data <- bind_rows(data_train, data_test) |>
+  retraitement_donnees()
+data_train <- data |> filter(PassengerId %in% data_train$PassengerId)
+data_test <- data |> filter(PassengerId %in% data_test$PassengerId)
+
+lkp_hist_b <- function(...) lkp_hist(..., colors = c(lkp_magenta, lkp_green))
+```
+
+# Introduction {-}
+
+Ce projet propose d'étudier le jeu de données [`Spaceship Titanic`](https://www.kaggle.com/competitions/spaceship-titanic), rendu disponible dans le cadre d'un concours organisé par le site [Kaggle](https://www.kaggle.com/), afin d'illustrer les méthodes de manipulation des données (*data cleaning* et *feature engineering*), de visualisation (*data visualisation*) ainsi que de modélisation *data analytics*).
+
+Le principe de la compétition est d'exploiter le contenu d'une base de données contenant des informations sur les passagers d'un vaisseau spatial dont certains ont mystérieusement disparu. A partir de ces données, un modèle pourra être construit et utilisé pour prédire le sort d'un certain nombre de passagers dont on ignore s'ils ont disparu ou non, mais dont on connaît les autres caractéristiques.
+
+# Statistiques descriptives
+
+L'objectif de cette Section est de décrire le contenu du jeu de données. Nous commencerons par une analyse univariée en lien avec la variable d'intérêt et nous intéresserons ensuite aux associations impliquant plusieurs variables explicatives.
+
+## Analyses univariées
+
+### Variables génériques
+
+Les passagers cryogénisés semblent avoir significativement plus de chance de disparaître que ceux qui ne le sont pas. Peut-être s'agit-il de proies faciles ?
+
+```{r}
+lkp_hist_b(data_train, CryoSleep, fill = Transported) +
+  theme(legend.position = c(0.9, 0.9))
+```
+
+Les passagers en provenance d'Europa semblent avoir sensiblement plus de chance de disparaître que les autres passagers, et les terriens sensiblement moins de chance. Le phénomène à l'oeuvre veut-il constituer une collection diversifiée ?
+
+```{r}
+lkp_hist_b(data_train, HomePlanet, fill = Transported) +
+  theme(legend.position = c(0.9, 0.9))
+```
+
+Les passagers à destination de `55 Cancri e` semblent avoir plus de chance de disparaître.
+
+```{r}
+lkp_hist_b(data_train, Destination, fill = Transported) +
+  theme(legend.position = c(0.9, 0.9))
+```
+
+Les enfants en bas âge semblent disparaître plus fréquemment.
+
+```{r}
+lkp_hist_b(data_train, Age, bw = 5, fill = Transported) +
+  theme(legend.position = c(0.9, 0.9))
+```
+
+Les VIP semblent avoir moins de chance de disparaître. Comme ils sont peu nombreux, cette observation doit être considérée avec réserve.
+
+```{r}
+lkp_hist_b(data_train, VIP, fill = Transported) +
+  theme(legend.position = c(0.9, 0.9))
+```
+
+### Numéro de cabine
+
+Les passagers résidant dans les sections B et C du vaisseau semblent avoir sensiblement plus de chance de disparaître.
+
+```{r}
+lkp_hist_b(data_train, CabinArea, fill = Transported) +
+  theme(legend.position = c(0.9, 0.9))
+```
+
+Les passagers résidant du côté S du vaisseau ont a priori plus de chances de disparaître.
+
+```{r}
+lkp_hist_b(data_train, CabinSide, fill = Transported) +
+  theme(legend.position = c(0.9, 0.9))
+```
+
+Il ne semble pas avoir de lien entre la probabilité de disparaître et le numéro de cabine
+
+```{r}
+#| fig-asp: 1.2
+lkp_hist_b(data_train |> filter(!is.na(CabinSide)), CabinNumber, f1 = CabinArea, f2 = CabinSide, bw = 1e1,
+           fill = Transported, facet_type = "grid", n_breaks_x = 10) +
+
+  theme(legend.position = "bottom")
+```
+
+### Variables de type dépense
+
+```{r}
+lkp_density(data_train, TotalExpenses, fill = Transported, from = 0)
+```
+
+
+```{r}
+lkp_density(data_train |> filter(!NoExpenses), TotalExpenses, fill = Transported, from = 0)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = RoomService:VRDeck, names_to = "Expense_type", values_to = "Expenses") |>
+  lkp_density(Expenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = RoomService:VRDeck, names_to = "Expense_type", values_to = "Expenses") |>
+  filter(!NoExpenses) |>
+  lkp_density(Expenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = RoomService:VRDeck, names_to = "Expense_type", values_to = "Expenses") |>
+  filter(Expenses > 0) |>
+  lkp_density(Expenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+
+```{r}
+lkp_density(data_train |> filter(!NoExpenses), LogTotalExpenses,
+            fill = Transported)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = LogRoomService:LogVRDeck, names_to = "Expense_type", values_to = "LogExpenses") |>
+  filter(LogExpenses != 0) |>
+  lkp_density(LogExpenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+## Analyses multivariées
+
+### Variables hors dépenses
+
+```{r}
+#### CryoSleep----
+lkp_hist_b(data_train, Transported, fill = CryoSleep) +
+  scale_fill_manual(values = c(lkp_magenta, lkp_lightblue))
+```
+
+
+```{r}
+lkp_hist_b(data_train, HomePlanet, fill = CryoSleep) +
+
+  theme(legend.position = c(0.9, 0.9))
+```
+
+
+```{r}
+lkp_hist_b(data_train, Destination, fill = CryoSleep) +
+
+  theme(legend.position = c(0.9, 0.9))
+```
+
+
+```{r}
+lkp_hist_b(data_train, Age, bw = 5, fill = CryoSleep)
+```
+
+
+```{r}
+lkp_hist_b(data_train, VIP, fill = CryoSleep) +
+
+  theme(legend.position = c(0.9, 0.9))
+```
+
+
+```{r}
+lkp_hist_b(data_train, CabinArea, fill = CryoSleep) +
+
+  theme(legend.position = c(0.9, 0.9))
+```
+
+
+```{r}
+lkp_hist_b(data_train, CabinSide, fill = CryoSleep) +
+
+  theme(legend.position = c(0.9, 0.9))
+```
+
+
+```{r}
+lkp_hist_b(data_train |> filter(!is.na(CabinArea)), CabinNumber, f1 = CabinArea, bw = 1e2, fill = CryoSleep)
+```
+
+
+```{r}
+lkp_hist_b(data_train |> filter(!is.na(CabinSide)), CabinNumber, f1 = CabinSide, bw = 1e2, fill = CryoSleep)
+```
+
+
+```{r}
+lkp_hist_b(data_train |> filter(!is.na(CabinSide)), CabinNumber, f1 = CabinArea, f2 = CabinSide, bw = 1e2, fill = CryoSleep, facet_type = "grid")
+```
+
+
+```{r}
+#### HomePlanet----
+lkp_hist(data_train, Transported, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train, CryoSleep, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train, Destination, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train, Age, bw = 5, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train, VIP, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinSide)), CabinArea, f1 = CabinSide, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinArea)), CabinNumber, f1 = CabinArea, bw = 1e2, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinSide)), CabinNumber, f1 = CabinSide, bw = 1e2, fill = HomePlanet)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinSide)), CabinNumber, f1 = CabinArea, f2 = CabinSide, bw = 1e2, fill = HomePlanet, facet_type = "grid")
+```
+
+
+```{r}
+#### Destination----
+lkp_hist(data_train, Transported, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train, CryoSleep, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train, HomePlanet, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train, Age, bw = 5, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train, VIP, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinSide)), CabinArea, f1 = CabinSide, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinArea)), CabinNumber, f1 = CabinArea, bw = 1e2, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinSide)), CabinNumber, f1 = CabinSide, bw = 1e2, fill = Destination)
+```
+
+
+```{r}
+lkp_hist(data_train |> filter(!is.na(CabinSide)), CabinNumber, f1 = CabinArea, f2 = CabinSide, bw = 1e2, fill = Destination, facet_type = "grid")
+```
+
+### Variables de type dépense
+
+```{r}
+lkp_density(data_train, TotalExpenses, fill = Transported, from = 0)
+lkp_density(data_train |> filter(!NoExpenses), TotalExpenses, fill = Transported, from = 0)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = RoomService:VRDeck, names_to = "Expense_type", values_to = "Expenses") |>
+  lkp_density(Expenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = RoomService:VRDeck, names_to = "Expense_type", values_to = "Expenses") |>
+  filter(!NoExpenses) |>
+  lkp_density(Expenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = RoomService:VRDeck, names_to = "Expense_type", values_to = "Expenses") |>
+  filter(Expenses > 0) |>
+  lkp_density(Expenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+
+```{r}
+lkp_density(data_train |> filter(!NoExpenses), LogTotalExpenses,
+            fill = Transported)
+```
+
+
+```{r}
+data_train |>
+  pivot_longer(cols = LogRoomService:LogVRDeck, names_to = "Expense_type", values_to = "LogExpenses") |>
+  filter(LogExpenses != 0) |>
+  lkp_density(LogExpenses, fill = Expense_type, f1 = Transported, from = 0)
+```
+
+# Imputation des valeurs manquantes
+
+Règles d'imputation :
+
+* Les passagers originaires d'Europa sont peu susceptibles d'aller sur PSO J318.5-22
+
+* Les passagers de la planète Terre ne peuvent a priori pas être VIP
+
+* La numérotation des cabines donne une information sur la planète d'origine des passagers
+
+# Soumissions
+
+## Modèle de base
+
+Le modèle le plus simple pouvant être construit en se basant sur les données consiste à assigner la même probabilité de disparition à tous les passagers. Cette probabilité est estimée comme la fréquence de disparition des passagers observée sur la base d'entraînement.

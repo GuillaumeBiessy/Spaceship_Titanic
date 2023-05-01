@@ -1,0 +1,134 @@
+/* Color and font */
+body, p, h1, h2, h3, caption, td, .title, .quarto-title-meta-contents, .header-section-number {
+  color: rgb(0, 34, 93); /* blue */
+  font-family: "Gandhi Serif", serif;
+}
+
+
+/* Bold */
+h1, h2, h3, .quarto-title-meta-contents {font-weight: bold}
+
+
+/* Main title */
+.title {
+  font-size: 300%;
+  font-variant: small-caps;
+  text-align: center;
+  margin-top: 2.5em !important;
+  border: 5px solid rgb(0, 136, 81); /* green */
+}
+
+
+/* Date and author headers */
+.quarto-title-meta-heading {
+  font-size: 120% !important;
+  font-weight: bold !important;
+  color: rgb(0, 136, 81); /* green */
+}
+
+
+/* Author */
+.quarto-title-meta-contents > p {
+  font-size: 150%;
+  text-align: left;
+}
+
+/* Size */
+h1 {font-size: 160%}
+h2 {font-size: 140%}
+h3 {font-size: 120%}
+td {font-size: 90%}
+
+
+/* Underline */
+h1 {
+  border-bottom: 3px solid rgb(0, 136, 81); /* green */
+}
+h2 {
+  border-bottom: 3px solid rgb(0, 136, 81); /* green */
+  width: fit-content;
+}
+h3 {
+  border-bottom: 2px solid rgb(0, 136, 81); /* green */
+  width: fit-content;
+}
+
+
+/* Justify */
+p, caption {text-align: justify;}
+
+
+/* Links */
+a {color: rgb(0, 136, 81); /* green */}
+
+
+/* Tables */
+thead {
+  color: white;
+  background-color: rgb(0, 136, 81); /* green */
+}
+tr {
+  border-top: 1px solid black;
+  border-bottom: 1px solid black;
+}
+thead, tbody {
+  border-left: 1px solid black;
+  border-right: 1px solid black;
+}
+tbody > tr > td:first-child {
+  color: white;
+  background-color: rgb(0, 136, 81); /* green */
+}
+thead > tr > th, tbody > tr > td {
+  border-left: 1px solid black;
+  border-right: 1px solid black;
+}
+thead > tr > th:first-child {
+  background-color: white;
+  border-top: 1px solid white;
+  border-left: 1px solid white;
+}
+.t1 > tbody > tr > td:first-child {
+  color: rgb(0, 34, 93); /* blue */
+  background-color: white; /* green */
+}
+.t1 > thead > tr > th:first-child {
+  background-color: rgb(0, 136, 81); /* green */
+  border-top: 1px solid black;
+  border-left: 1px solid black;
+}
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+    color: rgb(0, 34, 93); /* blue */
+}
+
+
+/* Tables and formula adjust to page width */
+.MathJax {
+    min-width: 0 !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+
+/* Table of contents */
+#toc-title {
+  font-variant: small-caps;
+}
+.sidebar nav[role=doc-toc] ul > li > a.active,
+.sidebar nav[role=doc-toc] ul > li > ul > li > a.active {
+  color: white !important;
+  background: rgb(0, 143, 90); /* green */
+}
+
+
+/* Logo */
+.logo1 {
+  margin: 1em;
+  width: 35%;
+  max-width: 250px;
+}
+.logo2 {
+  margin: 1em;
+  width: 30%;
+  max-width: 250px;
+}
