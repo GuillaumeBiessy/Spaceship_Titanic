@@ -17,6 +17,12 @@ data <- bind_rows(data_train, data_test) |>
 data_train <- data |> filter(PassengerId %in% data_train$PassengerId)
 data_test <- data |> filter(PassengerId %in% data_test$PassengerId)
 
+data2 <- data |>
+  imputation_certaine() |>
+  imputation_par_defaut()
+data_train2 <- data2 |> filter(PassengerId %in% data_train$PassengerId)
+data_test2  <- data2 |> filter(PassengerId %in% data_test$PassengerId)
+
 lkp_hist_b <- function(...) lkp_hist(..., colors = c(lkp_magenta, lkp_green))
 ```
 
@@ -344,18 +350,142 @@ data_train |>
   lkp_density(LogExpenses, fill = Expense_type, f1 = Transported, from = 0)
 ```
 
-# Imputation des valeurs manquantes
+# Modélisation
 
-Règles d'imputation :
+```{r}
+library(brmm)
 
-* Les passagers originaires d'Europa sont peu susceptibles d'aller sur PSO J318.5-22
+log_bw <- 1
+cabin_bw <- 0.1
+age_bw <- 5
 
-* Les passagers de la planète Terre ne peuvent a priori pas être VIP
+df_train <- spaceship_titanic$data_train |>
+  mutate(D = + Transported,
+         E = 1,
+         LogTotalExpenses = log_bw * round(LogTotalExpenses / log_bw, 0),
+         LogRoomService = log_bw * round(LogRoomService / log_bw, 0),
+         LogFoodCourt = log_bw * round(LogFoodCourt / log_bw, 0),
+         LogShoppingMall = log_bw * round(LogShoppingMall / log_bw, 0),
+         LogSpa = log_bw * round(LogSpa / log_bw, 0),
+         LogVRDeck = log_bw * round(LogVRDeck / log_bw, 0),
+         TotalExpenses = exp(LogTotalExpenses),
+         RoomService = exp(LogRoomService),
+         FoodCourt = exp(LogFoodCourt),
+         ShoppingMall = exp(LogShoppingMall),
+         Spa = exp(LogSpa),
+         VRDeck = exp(LogVRDeck),
+         CabinPosition = cabin_bw * round(CabinPosition / cabin_bw, 0),
+         Age = age_bw * round(Age / age_bw, 0),
+         Child = Age < 13)
+df_test <- spaceship_titanic$data_test |> 
+  mutate(E = 1,
+         Child = Age < 13)
 
-* La numérotation des cabines donne une information sur la planète d'origine des passagers
+# Components----
+I <- Intercept_sparse()
+HomePlanet <- Comp_1d_sparse("HomePlanet")
+CryoSleep <- Comp_1d_sparse("CryoSleep")
+Destination <- Comp_1d_sparse("Destination")
+VIP <- Comp_1d_sparse("VIP")
+Child <- Comp_1d_sparse("Child")
+CabinArea <- Comp_1d_sparse("CabinArea")
+CabinSide <- Comp_1d_sparse("CabinSide")
 
-# Soumissions
+CabinPosition <- Comp_1d_sparse("CabinPosition", smooth = TRUE, include_coef = list(X = integer(), Z = 1))
+Age <- Comp_1d_sparse("Age", smooth = TRUE)
+GroupSize <- Comp_1d_sparse("GroupSize", smooth = TRUE)
+CabinSize <- Comp_1d_sparse("CabinSize", smooth = TRUE)
+                        
+NoExpenses <- Comp_1d_sparse("NoExpenses")
+NoRoomService <- Comp_1d_sparse("NoRoomService")
+NoFoodCourt <- Comp_1d_sparse("NoFoodCourt")
+NoShoppingMall <- Comp_1d_sparse("NoShoppingMall")
+NoSpa <- Comp_1d_sparse("NoSpa")
+NoVRDeck <- Comp_1d_sparse("NoVRDeck")
 
-## Modèle de base
+TotalExpenses <- Comp_1d_sparse("TotalExpenses", smooth = TRUE)
+RoomService <- Comp_1d_sparse("RoomService", smooth = TRUE)
+FoodCourt <- Comp_1d_sparse("FoodCourt", smooth = TRUE)
+ShoppingMall <- Comp_1d_sparse("ShoppingMall", smooth = TRUE)
+Spa <- Comp_1d_sparse("Spa", smooth = TRUE)
+VRDeck <- Comp_1d_sparse("VRDeck", smooth = TRUE)
 
-Le modèle le plus simple pouvant être construit en se basant sur les données consiste à assigner la même probabilité de disparition à tous les passagers. Cette probabilité est estimée comme la fréquence de disparition des passagers observée sur la base d'entraînement.
+LogTotalExpenses <- Comp_1d_sparse("LogTotalExpenses", smooth = TRUE)
+LogRoomService <- Comp_1d_sparse("LogRoomService", smooth = TRUE)
+LogFoodCourt <- Comp_1d_sparse("LogFoodCourt", smooth = TRUE)
+LogShoppingMall <- Comp_1d_sparse("LogShoppingMall", smooth = TRUE)
+LogSpa <- Comp_1d_sparse("LogSpa", smooth = TRUE)
+LogVRDeck <- Comp_1d_sparse("LogVRDeck", smooth = TRUE)
+
+CabinArea_CabinSide <- Comp_2d_sparse(c("CabinArea", "CabinSide"))
+CabinArea_HomePlanet <- Comp_2d_sparse(c("CabinArea", "HomePlanet"))
+HomePlanet_CabinSide <- Comp_2d_sparse(c("HomePlanet", "CabinSide"))
+HomePlanet_Destination <- Comp_2d_sparse(c("HomePlanet", "Destination"))
+HomePlanet_CryoSleep <- Comp_2d_sparse(c("HomePlanet", "CryoSleep"))
+Destination_CryoSleep <- Comp_2d_sparse(c("Destination", "CryoSleep"))
+CabinArea_CryoSleep <- Comp_2d_sparse(c("CabinArea", "CryoSleep"))
+CabinSide_CryoSleep <- Comp_2d_sparse(c("CabinSide", "CryoSleep"))
+
+LogTotalExpenses_HomePlanet <- Comp_2d_sparse(c("LogTotalExpenses", "HomePlanet"), smooth = c(TRUE, FALSE))
+LogRoomService_HomePlanet <- Comp_2d_sparse(c("LogRoomService", "HomePlanet"), smooth = c(TRUE, FALSE))
+LogFoodCourt_HomePlanet <- Comp_2d_sparse(c("LogFoodCourt", "HomePlanet"), smooth = c(TRUE, FALSE))
+LogShoppingMall_HomePlanet <- Comp_2d_sparse(c("LogShoppingMall", "HomePlanet"), smooth = c(TRUE, FALSE))
+LogSpa_HomePlanet <- Comp_2d_sparse(c("LogSpa", "HomePlanet"), smooth = c(TRUE, FALSE))
+LogVRDeck_HomePlanet <- Comp_2d_sparse(c("LogVRDeck", "HomePlanet"), smooth = c(TRUE, FALSE))
+
+CabinPosition_CabinArea <- Comp_2d_sparse(c("CabinPosition", "CabinArea"), smooth = c(TRUE, FALSE))
+CabinPosition_CabinSide <- Comp_2d_sparse(c("CabinPosition", "CabinSide"), smooth = c(TRUE, FALSE))
+
+CabinPosition_CabinArea_CabinSide <- Comp_3d_sparse(c("CabinPosition", "CabinArea", "CabinSide"), 
+                                                    smooth = c(TRUE, FALSE, FALSE))
+```
+
+
+
+
+
+## Modèle sans interactions
+
+```{r}
+components_no_interactions_LogExpenses <- quick_list(
+  I, HomePlanet, CryoSleep, Destination, CabinArea, CabinSide, CabinPosition,
+  LogRoomService, LogFoodCourt, LogShoppingMall, LogSpa, LogVRDeck)
+```
+
+
+```{r}
+Model_no_interactions_LogExpenses <- brmm_sparse(
+  data = df_train, components = components_no_interactions_LogExpenses, glm = "B") |> 
+  predict(df_test)
+```
+
+
+```{r}
+#| fig-width: 12
+#| fig-asp: 1.5
+plot(Model_no_interactions_LogExpenses)
+```
+
+## Modèle avec interactions
+
+```{r}
+components_with_interactions_LogExpenses <- quick_list(
+  I, HomePlanet, CryoSleep, Destination, CabinArea, CabinSide, CabinPosition,
+  LogRoomService, LogFoodCourt, LogShoppingMall, LogSpa, LogVRDeck,
+  CabinArea_CabinSide, CabinArea_HomePlanet, HomePlanet_CryoSleep, Destination_CryoSleep, CabinArea_CryoSleep, LogRoomService_HomePlanet, LogFoodCourt_HomePlanet, LogShoppingMall_HomePlanet,
+  CabinPosition_CabinArea, CabinPosition_CabinSide, CabinPosition_CabinArea_CabinSide)
+```
+
+
+```{r}
+Model_with_interactions_LogExpenses <- brmm_sparse(
+  data = df_train, components = components_with_interactions_LogExpenses, glm = "B") |> 
+  predict(df_test)
+```
+
+
+```{r}
+#| fig-width: 12
+#| fig-asp: 1.5
+plot(Model_with_interactions_LogExpenses)
+```
