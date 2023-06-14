@@ -5,10 +5,88 @@ data_train <- read_csv("data/train.csv")
 data_test <- read_csv("data/test.csv")
 
 # Retraitement des données----
-data <- bind_rows(data_train, data_test) |>
-  retraitement_donnees()
-data_train <- data |> filter(PassengerId %in% data_train$PassengerId)
-data_test <- data |> filter(PassengerId %in% data_test$PassengerId)
+data <- retraitement_donnees(data_train, data_test)
+
+nrow(data) == length(unique(data$PassengerId)) # L'Id est unique
+max(data$IdGroup) == length(unique(data$IdGroup)) # La numérotation des groupes ne comporte aucun trou
+
+summary(data[data$TypeBase == "train",]$IdGroup)
+summary(data[data$TypeBase == "test",]$IdGroup)
+# La répartition des numéros de groupe semble la même sur les bases d'entraînement et de test
+
+any(data$GroupSize != data$MaxIdNumberInGroup)
+# Aucun numéro ne manque au sein des groupes
+
+data |> 
+  filter(!is.na(Cabin)) |>
+  group_by(Cabin) |>
+  summarize(n = n()) |> 
+  (\(x) table("Occupants par cabine" = x$n))()
+# Les cabines accueillent de 1 à 8 occupants
+
+data |> 
+  filter(!is.na(Cabin)) |>
+  group_by(Cabin) |>
+  summarize(n = length(unique(IdGroup))) |> 
+  (\(x) table("Groupes par cabine" = x$n))()
+# Les occupants d'une cabine font toujours partie du même groupe
+  
+data |> 
+  filter(!is.na(Cabin)) |>
+  group_by(IdGroup) |>
+  summarize(n = length(unique(Cabin))) |> 
+  (\(x) table("Cabines par groupe" = x$n))()
+# Les membres d'un groupe peuvent être répartis dans 1 à 3 cabines
+
+data |> 
+  filter(!is.na(Cabin)) |>
+  group_by(IdGroup, GroupSize) |>
+  summarize(n = length(unique(Cabin))) |> 
+  (\(x) table("Taille du groupe" = x$GroupSize, 
+              "Nombre de cabines occupées" = x$n))()
+# Les membres d'un groupe sont plus susceptibles d'occuper la même cabine
+
+data |> 
+  filter(!is.na(Cabin)) |>
+  group_by(IdGroup, GroupSize) |>
+  summarize(n = length(unique(CabinSide))) |> 
+  (\(x) table("Taille du groupe" = x$GroupSize, 
+              "Nombre de côtés occupés" = x$n))()
+# Les membres d'un groupe ont toujours des cabines du même côté du vaisseau
+
+data |> 
+  filter(!is.na(Cabin)) |>
+  group_by(IdGroup, CabinInGroup) |>
+  summarize(n = length(unique(CabinDeck))) |> 
+  (\(x) table("Nombre de cabines occupées" = x$CabinInGroup,
+              "Nombre de ponts occupés" = x$n))()
+# Lorsque les membres d'un groupe occupent plusieurs cabines, elles sont obligatoirement sur des ponts différents
+
+data |> 
+  filter(!is.na(HomePlanet)) |>
+  group_by(IdGroup) |>
+  summarize(n = length(unique(HomePlanet))) |> 
+  (\(x) table("Planètes d'origine par groupe" = x$n))()
+# Les membres d'un groupe viennent toujours de la même planète
+
+data |> 
+  filter(!is.na(Destination) & !is.na(Cabin)) |>
+  group_by(Cabin, CabinSize) |>
+  summarize(n = length(unique(Destination))) |> 
+  (\(x) table("Occupants de la cabine" = x$CabinSize, 
+              "Destinations" = x$n))()
+# Les occupants d'une cabine peuvent avoir des destinations différentes
+
+data |> 
+  filter(!is.na(CryoSleep) & !is.na(Cabin)) |>
+  group_by(Cabin, CabinSize) |>
+  summarize(CryoStatus = case_when(
+    length(unique(CryoSleep)) == 2 ~ "both",
+    CryoSleep ~ "cryo",
+    TRUE ~ "not-cryo")) |> 
+  (\(x) table("Occupants de la cabine" = x$CabinSize, 
+              "Etat de Cryogénisation" = x$CryoStatus))()
+# Les occupants d'une cabine peuvent avoir des destinations différentes
 
 data2 <- data |>
   imputation_certaine() |>

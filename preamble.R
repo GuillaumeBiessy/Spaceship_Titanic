@@ -1,6 +1,5 @@
 library(tidyverse)
 library(Linkplots)
-library(mice)
 library(mgcv)
 
 source("functions_kaggle.R", encoding = "UTF8")

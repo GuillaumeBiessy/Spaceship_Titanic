@@ -32,6 +32,17 @@ Ce projet propose d'étudier le jeu de données [`Spaceship Titanic`](https://ww
 
 Le principe de la compétition est d'exploiter le contenu d'une base de données contenant des informations sur les passagers d'un vaisseau spatial dont certains ont mystérieusement disparu. A partir de ces données, un modèle pourra être construit et utilisé pour prédire le sort d'un certain nombre de passagers dont on ignore s'ils ont disparu ou non, mais dont on connaît les autres caractéristiques.
 
+# Contenu du jeu de données
+
+Le jeu de données est composé d'une base d'apprentissage contenant 9693 observations et une base d'apprentissage contenant 4277 observations.
+
+Les deux bases contiennent 13 variables explicatives communes et la base d'apprentissage contient en supplément la variable `Transported` dont la prédiction est l'objectif de ce projet.
+
+Les 14 variables de la base peuvent être décrites de la manière suivante :
+
+
+* PassengerId : une variable de type chaîne de caractère qui 
+
 # Statistiques descriptives
 
 L'objectif de cette Section est de décrire le contenu du jeu de données. Nous commencerons par une analyse univariée en lien avec la variable d'intérêt et nous intéresserons ensuite aux associations impliquant plusieurs variables explicatives.
